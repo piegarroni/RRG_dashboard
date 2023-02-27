@@ -1,0 +1,15 @@
+gold: https://www.macrotrends.net/stocks/charts/GOLD/barrick-gold/stock-price-history    gotta scrape button html
+yahoo: https://finance.yahoo.com/quote/GC=F?p=GC=F&.tsrc=fin-srch    GC=F
+
+long term gov. bonds: https://fred.stlouisfed.org/series/IRLTLT01USM156N
+yahoo: https://finance.yahoo.com/quote/QLTA/history?p=QLTA   QLTA
+
+yahoo:
+13 weeks: https://finance.yahoo.com/quote/%5EIRX?p=%5EIRX   ^IRX
+5 years: https://finance.yahoo.com/quote/%5EFVX?p=%5EFVX   ^FVX
+10 years: https://finance.yahoo.com/quote/%5ETNX?p=%5ETNX   ^TNX
+
+
+
+AAA bonds: https://fred.stlouisfed.org/series/DAAA
+https://ycharts.com/indicators/us_coporate_aaa_effective_yield
