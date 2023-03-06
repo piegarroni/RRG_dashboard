@@ -11,6 +11,7 @@ from dash import (
 ) 
 import dash_bootstrap_components as dbc
 from plotly.subplots import make_subplots
+from datetime import datetime
 
 # external css static
 external_stylesheets = [dbc.themes.SLATE]
@@ -190,7 +191,8 @@ available_symbols.update(stocks)
 
 # define date range
 start_date = "2000-01-22"
-end_date = "2023-02-22"
+end_date  = datetime.today().strftime('%Y-%m-%d')
+
 date_range = pd.date_range(start=start_date, end=end_date, freq="B")
 print(date_range)
 
@@ -203,9 +205,9 @@ def rs_ratio(prices_df, benchmark, window=14):
     ratio_df = pd.DataFrame()
 
     for column in prices_df:
-        rs = (prices_df[column] / benchmark) * 100
+        rs = (prices_df[column][-window*6:] / benchmark[-window*6:]) * 100
         rs_ratio = rs.rolling(window).mean()
-        rel_ratio = 100 + ((rs_ratio - rs_ratio.mean()) / rs_ratio.std() + 1)
+        rel_ratio = (rs_ratio - rs_ratio.mean()) / rs_ratio.std()
 
         ratio_df[f"{column}_ratio"] = rel_ratio
 
@@ -220,12 +222,10 @@ def rs_momentum(prices_df, benchmark, window=14):
     """
     momentum_df = pd.DataFrame()
     for column in prices_df:
-        rs = (prices_df[column] / benchmark) * 100
+        rs = (prices_df[column][-window*6:] / benchmark[-window*6:]) * 100
         rs_ratio = rs.rolling(window).mean()
-        rs_momentum = rs_ratio - rs_ratio.shift(window)
-        rel_momentum = 100 + (
-            (rs_momentum - rs_momentum.mean()) / rs_momentum.std() + 1
-        )
+        rs_momentum = rs_ratio - rs_ratio.shift(5)
+        rel_momentum = (rs_momentum - rs_momentum.mean()) / rs_momentum.std()
         momentum_df[f"{column}_momentum"] = rel_momentum
     momentum_df.dropna(axis=0, how="all", inplace=True)
     return momentum_df
@@ -244,7 +244,9 @@ def visualize_rs(df, symbol: str):
     fig.add_trace(
         go.Scatter(x=rs_momentum.index, y=rs_momentum, name="RS Momentum"), row=2, col=1
     )
-    fig.update_layout(title=f"RS Ratio and Momentum for {symbol}", height=800)
+    fig.update_layout(
+        title=f"RS Ratio and Momentum for {symbol}", height=800, xaxis = dict(color='#555')
+    )
     return fig
 
 
@@ -292,35 +294,18 @@ def visualize_rrg(df, symbol, period, last_date):
         )
     )
 
-    # add vertical and horizontal quadrants line
-    fig.add_trace(
-        go.Scatter(
-            x=[0, 200],
-            y=[100, 100],
-            mode="lines",
-            line=dict(color="darkgrey", width=1),
-            name="Horizontal line",
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            y=[0, 200],
-            x=[100, 100],
-            mode="lines",
-            line=dict(color="darkgrey", width=1),
-            name="Horizontal line",
-        )
-    )
 
     fig.update_layout(
         title=f"RRG graph for {symbol}",
         xaxis_title="RS ratio",
         yaxis_title="RS momentum",
-        xaxis_range=[95, 105],
-        yaxis_range=[95, 105],
+        xaxis = dict(zerolinecolor='black'),
+        yaxis = dict(zerolinecolor='black')
     )
     return fig
 
+
+# ----------------------------------------------------------------------------------------------------------------------
 
 app.layout = html.Div(
     [
