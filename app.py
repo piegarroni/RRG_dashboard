@@ -1,5 +1,6 @@
 import dash
 import pandas as pd
+import numpy as np
 import yfinance as yf
 import plotly.graph_objs as go
 from dash import (
@@ -202,49 +203,57 @@ end_date  = datetime.today().strftime('%Y-%m-%d')
 date_range = pd.date_range(start=start_date, end=end_date, freq="B")
 
 
-def rs_ratio(prices_df, benchmark, window=14):
+def rs_ratio(prices_df, benchmark, window=10):
     
     """
     Function that returns dataframe with relative strength ratio for each symbol
     """
 
     # create new dataframe
-    ratio_df = pd.DataFrame()
+    index = prices_df.index
+    ratio_df = pd.DataFrame(index=index)
+    ratio_df.index = pd.to_datetime(ratio_df.index)
 
-    # for every column calculate its' relative strength ratio compared to the benchmark
+    benchmark = benchmark.rolling(8).mean()
+
     for column in prices_df:
-       # rs = (prices_df[column][-window*6:] / benchmark[-window*6:]) * 100
+        prices_df[column] = prices_df[column].rolling(8).mean()
+
         rs = (prices_df[column] / benchmark) * 100
+        rs = rs.rolling(window).mean()
+        rs_ratio = [np.nan for i in range(window * 2)]
+        
+        for i in range(window * 2, len(rs)):
+            rs_subset = rs[: i+1]                 
+            ratio = (rs_subset[i] - rs_subset[-window * 2 : i-1].mean()) / rs_subset[-window * 2 : i-1].std() +1
+            rs_ratio.append(ratio)    
 
-        rs_ratio = rs.rolling(window).mean()
-        rel_ratio = (rs_ratio - rs_ratio.mean()) / rs_ratio.std()
-        ratio_df[f"{column}_ratio"] = rel_ratio
+        rs_ratio = pd.Series(rs_ratio, index = index)
+        
+        rs_ratio = rs_ratio.rolling(4).mean()
 
-    # drop nan values
-    ratio_df.dropna(axis=0, how="all", inplace=True)
-
+        ratio_df[f'{column}_ratio'] = rs_ratio
+    
+    ratio_df.dropna(axis=0, how='all', inplace=True)
     return ratio_df
 
-def rs_momentum(prices_df, benchmark, window=14):
-    """
-    Function that returns dataframe with relative strength momentum for each symbol
-    """
-    # create new dataframe
-    momentum_df = pd.DataFrame()
 
-    # for every column calculate its' relative strength momentum compared to the benchmark
-    for column in prices_df:
-       # rs = (prices_df[column][-window*6:] / benchmark[-window*6:]) * 100
-        rs = (prices_df[column] / benchmark) * 100
+def rs_momentum(ratio_df):
+    index = ratio_df.index
 
-        rs_ratio = rs.rolling(window).mean()
-        rs_momentum = rs_ratio - rs_ratio.shift(5)
-        rel_momentum = (rs_momentum - rs_momentum.mean()) / rs_momentum.std()
-        momentum_df[f"{column}_momentum"] = rel_momentum
+    momentum_df = pd.DataFrame(index=index)
 
-    # drop nan values
-    momentum_df.dropna(axis=0, how="all", inplace=True)
+    for column in ratio_df:
+        name = column.split('_')[0]
+        rs_momentum = ratio_df[column] - ratio_df[column].shift(5)
+
+        momentum_df[f'{name}_momentum'] = rs_momentum
+
     return momentum_df
+
+    
+
+
 
 
 def visualize_asset_benchmark(df, asset_symbols, benchmark_symbol):
@@ -483,6 +492,8 @@ app.layout = html.Div(
 )
 
 
+data = yf.download(['QLTA', 'SPY'], start_date, end_date)
+
 @app.callback(
     dash.dependencies.Output("comparison-plot", "figure"),
     dash.dependencies.Output("rs-plot", "figure"),
@@ -502,11 +513,6 @@ def update_plots(symbols, benchmark, tail_len, time_range):
     symbol_changed = "symbol-dropdown" in triggered
     print(symbol_changed)
 
-    # Download data from Yahoo Finance only if the symbol has changed
-    if symbol_changed:
-        #data = yf.download(symbols.append(benchmark), start_date, end_date)
-        print("data downloaded")
-
     # ---------------------------------
 
     # define date range start and end
@@ -522,15 +528,21 @@ def update_plots(symbols, benchmark, tail_len, time_range):
         all_symbols = symbols
     all_symbols.append(benchmark)
 
+    # Download data from Yahoo Finance only if the symbol has changed
+    if symbol_changed:
+       # data = yf.download(all_symbols, start_date, end_date)
+        print("data should be downloaded now")
+
     # Download data from Yahoo Finance
     data = yf.download(all_symbols, start_date, end_date)
 
     # subset within selected range
-    data_loc = data.loc[(data.index > first_date) & (data.index <= last_date)]
+    data1= data.copy()
+    data_loc = data1.loc[(data1.index > first_date) & (data1.index <= last_date)]
     
     # Retrieve rs ratio and momentum
     ratio_df = rs_ratio(data_loc["Adj Close"], data_loc[("Adj Close", benchmark)])
-    momentum_df = rs_momentum(data_loc["Adj Close"], data_loc[("Adj Close", benchmark)])
+    momentum_df = rs_momentum(ratio_df)
 
     # Merge rs ratio and momentum data
     df = pd.merge(
