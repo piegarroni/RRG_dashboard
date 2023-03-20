@@ -13,7 +13,6 @@ from dash import (
 import dash_bootstrap_components as dbc
 from plotly.subplots import make_subplots
 from datetime import datetime
-from modules import modules
 
 # external css static
 external_stylesheets = [dbc.themes.SLATE]
@@ -203,145 +202,300 @@ end_date  = datetime.today().strftime('%Y-%m-%d')
 
 date_range = pd.date_range(start=start_date, end=end_date, freq="B")
 
+''''
 
-# ----------------------------------------------------------------------------------------------------------------------
-
-app.layout = html.Div(
-    [
-        html.H1("Visualizing RS Ratio and Momentum"),
-        html.Label("Select a symbol:"),
-        dcc.Dropdown(
-            id="symbol-dropdown",
-            options=[
-                {"label": symbol, "value": available_symbols[symbol]}
-                for symbol in available_symbols
-            ],
-            value=available_symbols["US bond (QLTA)"],
-            multi=True
-        ),
-        html.Br(),
-
-        html.Label("Select a benchmark:"),
-        dcc.Dropdown(
-            id="benchmark-dropdown",
-            options=[
-                {"label": symbol, "value": benchmarks[symbol]}
-                for symbol in benchmarks
-            ],
-            value=available_symbols["S&P 500 (SPY)"],
-        ),
-        html.Br(),
-        html.Br(),
-        html.Label("Select time range (from 01-2000 to today):"),
-
-        dcc.RangeSlider(
-            id="time-range",
-            min=0,
-            max=len(date_range) - 1,
-            value=[len(date_range) - 200, len(date_range) - 1],
-            allowCross=False,
-            marks=None
-        ),
-
-        dcc.Graph(id="comparison-plot"),
-        dcc.Graph(id="rs-plot"),
-
-        html.Br(),
-        html.Br(),
-        html.Label("Select tail length (days):"),
-        dcc.Slider(
-            id="tail-length",
-            min=5,
-            max=50,
-            value=20,
-            marks={i: str(i) for i in range(5, 51)},
-        ),
-        html.Br(),
-        html.Label("Selected period:"),
-
-        html.Div(id="output_container", children=[]),
-        html.Br(),
-        dcc.Graph(
-            id="rrg-plot",
-            figure={},
-            style={"width": "60%", "height": "67vh", "backgroundColor": "black"},
-        ),
-        html.Br(),
-    ],
-    style={"margin": "35px 5% 75px 5%"},
-)
-
-
-data = yf.download(['QLTA', 'SPY'], start_date, end_date)
-
-@app.callback(
-    dash.dependencies.Output("comparison-plot", "figure"),
-    dash.dependencies.Output("rs-plot", "figure"),
-    dash.dependencies.Output("rrg-plot", "figure"),
-    dash.dependencies.Output("output_container", "children"),
-    [
-        dash.dependencies.Input("symbol-dropdown", "value"),
-        dash.dependencies.Input("benchmark-dropdown", "value"),
-        dash.dependencies.Input("tail-length", "value"),
-        dash.dependencies.Input("time-range", "value"),
-    ],
-)
-def update_plots(symbols, benchmark, tail_len, time_range):
-
-    # dropdown menu trigger
-    triggered = dash.callback_context.triggered[0]["prop_id"]
-    symbol_changed = "symbol-dropdown" in triggered
-    print(symbol_changed)
-
-    # ---------------------------------
-
-    # define date range start and end
-    print(time_range)
-    last_date = date_range[time_range[1]]
-    first_date = date_range[time_range[0]]
-
-    # create a list with all symbols (assets and benchmark)
-    all_symbols= []
-    if type(symbols) == str:
-        all_symbols.append(symbols)
-        symbols = [symbols]
-    else:
-        all_symbols = symbols
-    all_symbols.append(benchmark)
-
-    # Download data from Yahoo Finance only if the symbol has changed
-    if symbol_changed:
-       # data = yf.download(all_symbols, start_date, end_date)
-        print("data should be downloaded now")
-
-    # Download data from Yahoo Finance
-    data = yf.download(all_symbols, start_date, end_date)
-
-    # subset within selected range
-    data1= data.copy()
-    data_loc = data1.loc[(data1.index > first_date) & (data1.index <= last_date)]
+def rs_ratio(prices_df, benchmark, window=10):
     
-    # Retrieve rs ratio and momentum
-    ratio_df = modules.rs_ratio(data_loc["Adj Close"], data_loc[("Adj Close", benchmark)])
-    momentum_df = modules.rs_momentum(ratio_df)
+    """
+    Function that returns dataframe with relative strength ratio for each symbol 
+    """
+    
+    # create new dataframe
+    index = prices_df.index
+    ratio_df = pd.DataFrame(index=index)
+    ratio_df.index = pd.to_datetime(ratio_df.index)
 
-    # Merge rs ratio and momentum data
-    df = pd.merge(
-        ratio_df, momentum_df, left_on=ratio_df.index, right_on=momentum_df.index
-    ).set_index("key_0")
+    benchmark = benchmark.rolling(6).mean()
 
-    # container for inputs information
-    container = f"Displaying RRG graph for {symbols} from {df.index[0]} until {str(last_date)}, with tail length {tail_len}"
+    for column in prices_df:
+        series = prices_df[column].rolling(6).mean()
 
-    # create list of symbols excluding benchmark
-    assets = [i for i in all_symbols if i != benchmark]
-    return (
-        modules.visualize_asset_benchmark(data_loc, assets, benchmark), 
-        modules.visualize_rs(df, assets),
-        modules.visualize_rrg(df, assets, int(tail_len)),
-        container,
+
+        rs_ratio = [np.nan for i in range(int(window * 3.5))]
+
+        for i in range(int(window * 3.5), len(prices_df)):
+            
+            series_subset = series[: i+1] 
+            benchmark_subset = benchmark[: i+1]
+            rs = (series_subset / benchmark_subset) * 100
+            print(rs)
+            rs = rs.rolling(window).mean()
+                            
+            ratio = (rs[i] - rs[int(-window * 3.5) : i-1].mean()) / rs[int(-window * 3.5) : i-1].std() +1
+            rs_ratio.append(ratio)    
+
+        rs_ratio = pd.Series(rs_ratio, index = index)
+        
+        rs_ratio = rs_ratio.rolling(12).mean()
+
+        ratio_df[f'{column}_ratio'] = rs_ratio
+    
+    ratio_df.dropna(axis=0, how='all', inplace=True)
+    return ratio_df
+
+'''
+def rs_ratio(prices_df, benchmark, window=10):
+    
+    """
+    Function that returns dataframe with relative strength ratio for each symbol (days)
+    """
+    
+    # create new dataframe
+    index = prices_df.index
+    ratio_df = pd.DataFrame(index=index)
+    ratio_df.index = pd.to_datetime(ratio_df.index)
+
+    benchmark = benchmark.rolling(4).mean()
+
+    for column in prices_df:
+        prices_df[column] = prices_df[column].rolling(4).mean()
+
+        rs = (prices_df[column] / benchmark) * 100
+        rs = rs.rolling(window).mean()
+        rs_ratio = [np.nan for i in range(int(window * 2))]
+        
+        for i in range(int(window * 2), len(rs)):
+            rs_subset = rs[: i+1]                 
+            ratio = (rs_subset[i] - rs_subset[int(-window * 2) : i-1].mean()) / rs_subset[int(-window * 2) : i-1].std() +1
+            rs_ratio.append(ratio)    
+
+        rs_ratio = pd.Series(rs_ratio, index = index)
+        
+        rs_ratio = rs_ratio.rolling(8).mean()
+
+        ratio_df[f'{column}_ratio'] = rs_ratio
+    
+    ratio_df.dropna(axis=0, how='all', inplace=True)
+    return ratio_df
+
+'''
+
+def rs_ratio(prices_df, benchmark, window=10):
+    
+    """
+    Function that returns dataframe with relative strength ratio for each symbol (week)
+    """
+    prices_df_weekly = prices_df.resample('W').first()
+
+    # create new dataframe
+    index = prices_df_weekly.index
+    ratio_df = pd.DataFrame(index=index)
+    ratio_df.index = pd.to_datetime(ratio_df.index)
+
+    benchmark_weekly = benchmark.resample('W').first()
+    benchmark_weekly = benchmark_weekly.rolling(8).mean()
+
+    for column in prices_df_weekly:
+        prices_df_weekly[column] = prices_df_weekly[column].rolling(8).mean()
+
+        rs = (prices_df_weekly[column] / benchmark_weekly) * 100
+        rs = rs.rolling(window).mean()
+        rs_ratio = [np.nan for i in range(window * 2)]
+        
+        for i in range(window * 2, len(rs)):
+            rs_subset = rs[: i+1]                 
+            ratio = (rs_subset[i] - rs_subset[-window * 2 : i-1].mean()) / rs_subset[-window * 2 : i-1].std() 
+            rs_ratio.append(ratio)    
+
+        rs_ratio = pd.Series(rs_ratio, index = index)
+        
+        #rs_ratio = rs_ratio.rolling(2).mean()
+
+        ratio_df[f'{column}_ratio'] = rs_ratio
+    
+    ratio_df.dropna(axis=0, how='all', inplace=True)
+    return ratio_df
+'''
+
+
+def rs_momentum(ratio_df):
+    index = ratio_df.index
+
+    momentum_df = pd.DataFrame(index=index)
+
+    for column in ratio_df:
+        name = column.split('_')[0]
+        rs_momentum = ratio_df[column] - ratio_df[column].shift(5)
+
+        momentum_df[f'{name}_momentum'] = rs_momentum
+
+    return momentum_df
+    
+
+
+
+
+def visualize_asset_benchmark(df, asset_symbols, benchmark_symbol):
+    """
+    Function to visualize the RS ratio and Momentum on two separate graphs, given one symbol
+    """
+    # make a copy of the dataframe
+    dff = df.copy()
+
+    # if asset is a string then add column, otherwise add columns
+    if type(asset_symbols) == str:
+        asset = dff[("Adj Close", asset_symbols)]
+    else:
+        asset = dff[[("Adj Close", i) for i in asset_symbols]]
+
+    # define benchmark column
+    benchmark = dff[("Adj Close", benchmark_symbol)]
+
+    # make graph
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1)
+
+    # for every asset add a trace in the graph
+    for column in asset:
+        fig.add_trace(
+            go.Scatter(x=asset.index, y=asset[column], name=f"Asset ({column})"), row=1, col=1
+        )
+    
+    # on the second graph plot only the benchmark
+    fig.add_trace(
+        go.Scatter(x=benchmark.index, y=benchmark, name=f"Benchmark ({benchmark_symbol})"), row=2, col=1
     )
 
+    fig.update_layout(
+        title=f"Benchmark ({benchmark_symbol}) vs asset ({asset_symbols})", 
+        height=600, 
+    )
 
-if __name__ == "__main__":
-    app.run_server(debug=True)
+    return fig
+
+def visualize_rs(df, symbols):
+    """
+    Function to visualize the RS ratio and Momentum on two separate graphs, given one symbol
+    """
+    # make a copy of the dataframe
+    dff = df.copy()
+
+    # if symbols is string then add one column, else add multiple columns
+    if type(symbols) == str:
+        rs_ratio = dff[f"{symbols}_ratio"]
+        rs_momentum = dff[f"{symbols}_momentum"]
+
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1)
+        fig.add_trace(
+            go.Scatter(x=rs_ratio.index, y=rs_ratio, name="RS Ratio"), row=1, col=1
+        )
+        
+        fig.add_trace(
+            go.Scatter(x=rs_momentum.index, y=rs_momentum, name="RS Momentum"), row=2, col=1
+        )
+
+        fig.update_layout(
+            title=f"RS Ratio and Momentum for {symbols}", height=600, 
+        )
+    else:
+        rs_ratio = dff[[f"{i}_ratio" for i in symbols]]
+        rs_momentum = dff[[f"{i}_momentum" for i in symbols]]
+
+        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.1)
+
+        for ratio, momentum in zip(rs_ratio.columns, rs_momentum.columns):
+            column =momentum.split("_")[0]
+            fig.add_trace(
+                go.Scatter(x=rs_ratio.index, y=rs_ratio[ratio], name=f"RS Ratio {column}"), row=1, col=1
+            )
+            
+            fig.add_trace(
+                go.Scatter(x=rs_momentum.index, y=rs_momentum[momentum], name=f"RS Momentum {column}"), row=2, col=1
+            )
+
+        fig.update_layout(
+            title=f"RS Ratio and Momentum for {symbols}", height=600, 
+        )
+    return fig
+
+
+def visualize_rrg(df, symbols, period):
+    """
+    Function to visualize the Relative Rotation Graph of the selected symbol
+    """
+    # make a copy of the dataframe
+    dff = df.copy()
+
+    # select last date
+    dff = dff.iloc[-period:]
+
+    # last datapoint
+    past = dff.iloc[:-1]
+    last = dff.iloc[-1]
+
+    # plot figure
+    fig = go.Figure()
+
+    if type(symbols) ==str:
+        fig.add_trace(
+            go.Scatter(
+                x=dff[f"{symbols}_ratio"],
+                y=dff[f"{symbols}_momentum"],
+                mode="lines",
+                name=symbols,
+            )
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=[last[f"{symbols}_ratio"]],
+                y=[last[f"{symbols}_momentum"]],
+                mode="markers",
+                marker=dict(size=7),
+            )
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=past[f"{symbols}_ratio"],
+                y=past[f"{symbols}_momentum"],
+                mode="markers",
+                marker=dict(symbol="x"),
+            )
+        )
+    else:
+        for i in symbols:
+            fig.add_trace(
+                go.Scatter(
+                    x=dff[f"{i}_ratio"],
+                    y=dff[f"{i}_momentum"],
+                    mode="lines",
+                    name=i,
+                )
+            )
+
+        fig.add_trace(
+            go.Scatter(
+                x=[last[f"{i}_ratio"]],
+                y=[last[f"{i}_momentum"]],
+                mode="markers",
+                marker=dict(size=7),
+            )
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=past[f"{i}_ratio"],
+                y=past[f"{i}_momentum"],
+                mode="markers",
+                marker=dict(symbol="x"),
+            )
+        )
+
+    fig.update_layout(
+        title=f"RRG graph",
+        xaxis_title="RS ratio",
+        yaxis_title="RS momentum",
+        xaxis = dict(zerolinecolor='black'),
+        yaxis = dict(zerolinecolor='black')
+    )
+
+    return fig
