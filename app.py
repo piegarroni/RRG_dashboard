@@ -237,8 +237,8 @@ app.layout = html.Div(
         dcc.RangeSlider(
             id="time-range",
             min=0,
-            max=len(date_range) - 1,
-            value=[len(date_range) - 200, len(date_range) - 1],
+            max=len(date_range.copy()) - 1,
+            value=[len(date_range.copy()) - 200, len(date_range.copy()) - 1],
             allowCross=False,
             marks=None
         ),
@@ -288,6 +288,7 @@ data = yf.download(['QLTA', 'SPY'], start_date, end_date)
 )
 def update_plots(symbols, benchmark, tail_len, time_range):
 
+
     # dropdown menu trigger
     triggered = dash.callback_context.triggered[0]["prop_id"]
     symbol_changed = "symbol-dropdown" in triggered
@@ -297,6 +298,8 @@ def update_plots(symbols, benchmark, tail_len, time_range):
 
     # define date range start and end
     print(time_range)
+    date_range1 = date_range.copy()
+    
     last_date = date_range[time_range[1]]
     first_date = date_range[time_range[0]]
 

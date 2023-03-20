@@ -202,48 +202,7 @@ end_date  = datetime.today().strftime('%Y-%m-%d')
 
 date_range = pd.date_range(start=start_date, end=end_date, freq="B")
 
-''''
 
-def rs_ratio(prices_df, benchmark, window=10):
-    
-    """
-    Function that returns dataframe with relative strength ratio for each symbol 
-    """
-    
-    # create new dataframe
-    index = prices_df.index
-    ratio_df = pd.DataFrame(index=index)
-    ratio_df.index = pd.to_datetime(ratio_df.index)
-
-    benchmark = benchmark.rolling(6).mean()
-
-    for column in prices_df:
-        series = prices_df[column].rolling(6).mean()
-
-
-        rs_ratio = [np.nan for i in range(int(window * 3.5))]
-
-        for i in range(int(window * 3.5), len(prices_df)):
-            
-            series_subset = series[: i+1] 
-            benchmark_subset = benchmark[: i+1]
-            rs = (series_subset / benchmark_subset) * 100
-            print(rs)
-            rs = rs.rolling(window).mean()
-                            
-            ratio = (rs[i] - rs[int(-window * 3.5) : i-1].mean()) / rs[int(-window * 3.5) : i-1].std() +1
-            rs_ratio.append(ratio)    
-
-        rs_ratio = pd.Series(rs_ratio, index = index)
-        
-        rs_ratio = rs_ratio.rolling(12).mean()
-
-        ratio_df[f'{column}_ratio'] = rs_ratio
-    
-    ratio_df.dropna(axis=0, how='all', inplace=True)
-    return ratio_df
-
-'''
 def rs_ratio(prices_df, benchmark, window=10):
     
     """
@@ -254,69 +213,18 @@ def rs_ratio(prices_df, benchmark, window=10):
     index = prices_df.index
     ratio_df = pd.DataFrame(index=index)
     ratio_df.index = pd.to_datetime(ratio_df.index)
-
-    benchmark = benchmark.rolling(4).mean()
+    
+    benchmark = benchmark.rolling(12).mean()
+    benchmark = benchmark.pct_change(5)
+    
+    #plt.plot(benchmark[-200:])
 
     for column in prices_df:
-        prices_df[column] = prices_df[column].rolling(4).mean()
-
-        rs = (prices_df[column] / benchmark) * 100
-        rs = rs.rolling(window).mean()
-        rs_ratio = [np.nan for i in range(int(window * 2))]
+        prices_df[column] = prices_df[column].rolling(12).mean()
+        prices_df[f'{column}_return'] = prices_df[column].pct_change(5)
+        prices_df[f'{column}_ratio'] = prices_df[f'{column}_return'] - benchmark
         
-        for i in range(int(window * 2), len(rs)):
-            rs_subset = rs[: i+1]                 
-            ratio = (rs_subset[i] - rs_subset[int(-window * 2) : i-1].mean()) / rs_subset[int(-window * 2) : i-1].std() +1
-            rs_ratio.append(ratio)    
-
-        rs_ratio = pd.Series(rs_ratio, index = index)
-        
-        rs_ratio = rs_ratio.rolling(8).mean()
-
-        ratio_df[f'{column}_ratio'] = rs_ratio
-    
-    ratio_df.dropna(axis=0, how='all', inplace=True)
-    return ratio_df
-
-'''
-
-def rs_ratio(prices_df, benchmark, window=10):
-    
-    """
-    Function that returns dataframe with relative strength ratio for each symbol (week)
-    """
-    prices_df_weekly = prices_df.resample('W').first()
-
-    # create new dataframe
-    index = prices_df_weekly.index
-    ratio_df = pd.DataFrame(index=index)
-    ratio_df.index = pd.to_datetime(ratio_df.index)
-
-    benchmark_weekly = benchmark.resample('W').first()
-    benchmark_weekly = benchmark_weekly.rolling(8).mean()
-
-    for column in prices_df_weekly:
-        prices_df_weekly[column] = prices_df_weekly[column].rolling(8).mean()
-
-        rs = (prices_df_weekly[column] / benchmark_weekly) * 100
-        rs = rs.rolling(window).mean()
-        rs_ratio = [np.nan for i in range(window * 2)]
-        
-        for i in range(window * 2, len(rs)):
-            rs_subset = rs[: i+1]                 
-            ratio = (rs_subset[i] - rs_subset[-window * 2 : i-1].mean()) / rs_subset[-window * 2 : i-1].std() 
-            rs_ratio.append(ratio)    
-
-        rs_ratio = pd.Series(rs_ratio, index = index)
-        
-        #rs_ratio = rs_ratio.rolling(2).mean()
-
-        ratio_df[f'{column}_ratio'] = rs_ratio
-    
-    ratio_df.dropna(axis=0, how='all', inplace=True)
-    return ratio_df
-'''
-
+    return prices_df.rolling(10).mean()
 
 def rs_momentum(ratio_df):
     index = ratio_df.index
@@ -326,11 +234,9 @@ def rs_momentum(ratio_df):
     for column in ratio_df:
         name = column.split('_')[0]
         rs_momentum = ratio_df[column] - ratio_df[column].shift(5)
-
-        momentum_df[f'{name}_momentum'] = rs_momentum
-
+        momentum_df[f'{name}_momentum'] = rs_momentum.rolling(4).mean()
+        
     return momentum_df
-    
 
 
 
