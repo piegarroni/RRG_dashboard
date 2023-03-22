@@ -1,15 +1,7 @@
-import dash
 import pandas as pd
-import numpy as np
-import yfinance as yf
 import plotly.graph_objs as go
-from dash import (
-    Dash,
-    dcc,
-    html,
-    dcc,
-    html,
-) 
+from dash import Dash
+
 import dash_bootstrap_components as dbc
 from plotly.subplots import make_subplots
 from datetime import datetime
@@ -203,7 +195,7 @@ end_date  = datetime.today().strftime('%Y-%m-%d')
 date_range = pd.date_range(start=start_date, end=end_date, freq="B")
 
 
-def rs_ratio(prices_df, benchmark, window=10):
+def rs_ratio(prices_df, benchmark):
     
     """
     Function that returns dataframe with relative strength ratio for each symbol (days)
@@ -239,8 +231,6 @@ def rs_momentum(ratio_df):
     return momentum_df
 
 
-
-
 def visualize_asset_benchmark(df, asset_symbols, benchmark_symbol):
     """
     Function to visualize the RS ratio and Momentum on two separate graphs, given one symbol
@@ -263,7 +253,7 @@ def visualize_asset_benchmark(df, asset_symbols, benchmark_symbol):
     # for every asset add a trace in the graph
     for column in asset:
         fig.add_trace(
-            go.Scatter(x=asset.index, y=asset[column], name=f"Asset ({column})"), row=1, col=1
+            go.Scatter(x=asset.index, y=asset[column], name=f"Asset ({column[1]})"), row=1, col=1
         )
     
     # on the second graph plot only the benchmark
@@ -340,7 +330,7 @@ def visualize_rrg(df, symbols, period):
 
     # plot figure
     fig = go.Figure()
-
+    '''
     if type(symbols) ==str:
         fig.add_trace(
             go.Scatter(
@@ -356,6 +346,8 @@ def visualize_rrg(df, symbols, period):
                 y=[last[f"{symbols}_momentum"]],
                 mode="markers",
                 marker=dict(size=7),
+                showlegend=False,
+                name = symbols,
             )
         )
 
@@ -365,18 +357,22 @@ def visualize_rrg(df, symbols, period):
                 y=past[f"{symbols}_momentum"],
                 mode="markers",
                 marker=dict(symbol="x"),
+                showlegend=False,
             )
         )
+    
     else:
-        for i in symbols:
-            fig.add_trace(
-                go.Scatter(
-                    x=dff[f"{i}_ratio"],
-                    y=dff[f"{i}_momentum"],
-                    mode="lines",
-                    name=i,
-                )
+    '''
+    for i in symbols:
+        fig.add_trace(
+            go.Scatter(
+                x=dff[f"{i}_ratio"],
+                y=dff[f"{i}_momentum"],
+                mode="lines",
+                name=i,
+
             )
+        )
 
         fig.add_trace(
             go.Scatter(
@@ -384,6 +380,7 @@ def visualize_rrg(df, symbols, period):
                 y=[last[f"{i}_momentum"]],
                 mode="markers",
                 marker=dict(size=7),
+                showlegend=False,
             )
         )
 
@@ -393,6 +390,7 @@ def visualize_rrg(df, symbols, period):
                 y=past[f"{i}_momentum"],
                 mode="markers",
                 marker=dict(symbol="x"),
+                showlegend=False,
             )
         )
 
